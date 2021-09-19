@@ -26,8 +26,10 @@ module.exports = grammar(C, {
     [$._expression, $._declarator, $._type_specifier],
     [$.parameter_list, $.argument_list],
     [$._type_specifier, $.call_expression],
-    [$._declaration_specifiers, $.operator_cast_declaration, $.operator_cast_definition, $.constructor_or_destructor_definition],
     [$._declaration_specifiers, $._constructor_specifiers],
+    [$._declaration_specifiers, $.operator_cast_declaration, $.operator_cast_definition, $.constructor_or_destructor_definition],
+    [$._declaration_specifiers, $.attributed_statement, $.operator_cast_declaration, $.operator_cast_definition, $.constructor_or_destructor_definition],
+    [$.attributed_statement, $.operator_cast_declaration, $.operator_cast_definition, $.constructor_or_destructor_definition],
   ]),
 
   inline: ($, original) => original.concat([
@@ -179,7 +181,8 @@ module.exports = grammar(C, {
 
     // The `auto` storage class is removed in C++0x in order to allow for the `auto` type.
     storage_class_specifier: ($, original) => choice(
-      ...original.members.filter(member => member.value !== 'auto')
+      ...original.members.filter(member => member.value !== 'auto'),
+      'thread_local',
     ),
 
     auto: $ => 'auto',
@@ -190,16 +193,6 @@ module.exports = grammar(C, {
     )),
 
     // Declarations
-
-    function_definition: ($, original) => seq(
-      repeat($.attribute),
-      original
-    ),
-
-    declaration: ($, original) => seq(
-      repeat($.attribute),
-      original
-    ),
 
     template_declaration: $ => seq(
       'template',
@@ -236,11 +229,6 @@ module.exports = grammar(C, {
         $.template_template_parameter_declaration
       )),
       alias(token(prec(1, '>')), '>')
-    ),
-
-    parameter_declaration: ($, original) => seq(
-      repeat($.attribute),
-      original
     ),
 
     type_parameter_declaration: $ => prec(1, seq(
@@ -364,7 +352,6 @@ module.exports = grammar(C, {
     ),
 
     field_declaration: $ => seq(
-      repeat($.attribute),
       optional($.virtual_function_specifier),
       $._declaration_specifiers,
       commaSep(field('declarator', $._field_declarator)),
@@ -377,7 +364,6 @@ module.exports = grammar(C, {
     ),
 
     inline_method_definition: $ => seq(
-      repeat($.attribute),
       optional($.virtual_function_specifier),
       $._declaration_specifiers,
       field('declarator', $._field_declarator),
@@ -393,6 +379,7 @@ module.exports = grammar(C, {
         $.storage_class_specifier,
         $.type_qualifier,
         $.attribute_specifier,
+        $.attribute_declaration,
         $.virtual_function_specifier,
         $.explicit_function_specifier
       ))
@@ -490,10 +477,13 @@ module.exports = grammar(C, {
       '[', commaSep1($.identifier), ']'
     )),
 
+    ref_qualifier: $ => choice('&', '&&'),
+
     function_declarator: ($, original) => prec.dynamic(1, seq(
       original,
       repeat(choice(
         $.type_qualifier,
+        $.ref_qualifier,
         $.virtual_specifier,
         $.noexcept,
         $.throw_specifier,
@@ -505,6 +495,7 @@ module.exports = grammar(C, {
       original,
       repeat(choice(
         $.type_qualifier,
+        $.ref_qualifier,
         $.virtual_specifier,
         $.noexcept,
         $.throw_specifier,
@@ -516,6 +507,7 @@ module.exports = grammar(C, {
       original,
       repeat(choice(
         $.type_qualifier,
+        $.ref_qualifier,
         $.noexcept,
         $.throw_specifier
       )),
@@ -630,8 +622,10 @@ module.exports = grammar(C, {
 
     // Statements
 
-    _statement: ($, original) => choice(
+    _non_case_statement: ($, original) => choice(
       original,
+      $.co_return_statement,
+      $.co_yield_statement,
       $.for_range_loop,
       $.try_statement,
       $.throw_statement,
@@ -704,9 +698,23 @@ module.exports = grammar(C, {
       field('body', $._statement)
     ),
 
-    return_statement: ($, original) => choice(
-      original,
-      seq('return', $.initializer_list, ';')
+    return_statement: ($, original) => seq(
+      choice(
+        original,
+        seq('return', $.initializer_list, ';')
+      )
+    ),
+
+    co_return_statement: $ => seq(
+      'co_return',
+      optional($._expression),
+      ';'
+    ),
+
+    co_yield_statement: $ => seq(
+      'co_yield',
+      $._expression,
+      ';'
     ),
 
     throw_statement: $ => seq(
@@ -727,16 +735,11 @@ module.exports = grammar(C, {
       field('body', $.compound_statement)
     ),
 
-    attribute: $ => seq(
-      '[[',
-      commaSep1($._expression),
-      ']]'
-    ),
-
     // Expressions
 
     _expression: ($, original) => choice(
       original,
+      $.co_await_expression,
       $.template_function,
       $.scoped_identifier,
       $.new_expression,
@@ -748,9 +751,22 @@ module.exports = grammar(C, {
       $.raw_string_literal
     ),
 
+    subscript_expression: $ => prec(PREC.SUBSCRIPT, seq(
+      field('argument', $._expression),
+      '[',
+      field('index', choice($._expression, $.initializer_list)),
+      ']'
+    )),
+
+
     call_expression: ($, original) => choice(original, seq(
       field('function', $.primitive_type),
       field('arguments', $.argument_list)
+    )),
+
+    co_await_expression: $ => prec.left(PREC.UNARY, seq(
+      field('operator', 'co_await'),
+      field('argument', $._expression)
     )),
 
     new_expression: $ => prec.right(PREC.NEW, seq(
@@ -909,7 +925,9 @@ module.exports = grammar(C, {
 
     operator_name: $ => token(seq(
       'operator',
+      /\s*/,
       choice(
+        'co_await',
         '+', '-', '*', '/', '%',
         '^', '&', '|', '~',
         '!', '=', '<', '>',
@@ -921,7 +939,8 @@ module.exports = grammar(C, {
         ',',
         '->*',
         '->',
-        '()', '[]'
+        '()', '[]',
+        seq(choice('new', 'delete'),  /\s*/, optional('[]')),
       )
     )),
 
