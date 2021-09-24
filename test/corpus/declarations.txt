@@ -207,6 +207,8 @@ class A {
   void b();
   virtual void foo() {}
   virtual void bar();
+  inline virtual void foo() override;
+  virtual inline void foo() final;
 };
 
 ---
@@ -233,7 +235,17 @@ class A {
         (primitive_type)
         (function_declarator
           (field_identifier)
-          (parameter_list))))))
+          (parameter_list)))
+      (field_declaration
+        (storage_class_specifier)
+        (virtual_function_specifier)
+        (primitive_type)
+        (function_declarator (field_identifier) (parameter_list) (virtual_specifier)))
+      (field_declaration
+        (virtual_function_specifier)
+        (storage_class_specifier)
+        (primitive_type)
+        (function_declarator (field_identifier) (parameter_list) (virtual_specifier))))))
 
 =========================================
 Constructor and destructor declarations
@@ -250,6 +262,7 @@ class C {
   [[deprecated]] C();
   template <typename T>
   C(T t);
+  C() : NS::Base<C>() {}
   ~C();
 };
 
@@ -269,6 +282,14 @@ class C {
       (function_declarator (identifier) (parameter_list)))
     (template_declaration (template_parameter_list (type_parameter_declaration (type_identifier)))
       (declaration (function_declarator (identifier) (parameter_list (parameter_declaration (type_identifier) (identifier))))))
+    (function_definition (function_declarator (identifier) (parameter_list))
+      (field_initializer_list
+        (field_initializer
+          (template_method
+            (scoped_field_identifier (namespace_identifier) (field_identifier))
+            (template_argument_list (type_descriptor (type_identifier))))
+          (argument_list)))
+      (compound_statement))
     (declaration (function_declarator (destructor_name (identifier)) (parameter_list))))))
 
 =========================================
@@ -453,7 +474,8 @@ Operator overload declarations
 =========================================
 
 ostream &operator<<(ostream &, const A &a);
-
+Foo operator "" _foo(const char* s);
+std::string_view operator ""s_v(const char* s);
 bool A::operator!=(const A &other) const;
 
 bool A::operator ==(const A &other) const;
@@ -473,6 +495,18 @@ void * A::operator delete   [](void * p);
         (parameter_list
           (parameter_declaration (type_identifier) (abstract_reference_declarator))
           (parameter_declaration (type_qualifier) (type_identifier) (reference_declarator (identifier)))))))
+  (declaration
+    (type_identifier)
+    (function_declarator
+      (operator_name (identifier))
+      (parameter_list
+        (parameter_declaration (type_qualifier) (primitive_type) (pointer_declarator (identifier))))))
+  (declaration
+    (scoped_type_identifier (namespace_identifier) (type_identifier))
+    (function_declarator
+      (operator_name (identifier))
+      (parameter_list
+        (parameter_declaration (type_qualifier) (primitive_type) (pointer_declarator (identifier))))))
   (declaration
     (primitive_type)
     (function_declarator

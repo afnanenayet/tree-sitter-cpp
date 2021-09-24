@@ -27,8 +27,8 @@ module.exports = grammar(C, {
     [$.parameter_list, $.argument_list],
     [$._type_specifier, $.call_expression],
     [$._declaration_specifiers, $._constructor_specifiers],
-    [$._declaration_specifiers, $.operator_cast_declaration, $.operator_cast_definition, $.constructor_or_destructor_definition],
-    [$._declaration_specifiers, $.attributed_statement, $.operator_cast_declaration, $.operator_cast_definition, $.constructor_or_destructor_definition],
+    [$._declaration_modifiers, $.operator_cast_declaration, $.operator_cast_definition, $.constructor_or_destructor_definition],
+    [$._declaration_modifiers, $.attributed_statement, $.operator_cast_declaration, $.operator_cast_definition, $.constructor_or_destructor_definition],
     [$.attributed_statement, $.operator_cast_declaration, $.operator_cast_definition, $.constructor_or_destructor_definition],
   ]),
 
@@ -140,6 +140,11 @@ module.exports = grammar(C, {
 
     virtual_function_specifier: $ => choice(
       'virtual'
+    ),
+
+    _declaration_modifiers: ($, original) => choice(
+      original,
+      $.virtual_function_specifier,
     ),
 
     explicit_function_specifier: $ => choice(
@@ -330,7 +335,7 @@ module.exports = grammar(C, {
     ),
 
     field_initializer: $ => prec(1, seq(
-      choice($._field_identifier, $.scoped_field_identifier),
+      choice($._field_identifier, $.scoped_field_identifier, $.template_method),
       choice($.initializer_list, $.argument_list),
       optional('...')
     )),
@@ -352,7 +357,6 @@ module.exports = grammar(C, {
     ),
 
     field_declaration: $ => seq(
-      optional($.virtual_function_specifier),
       $._declaration_specifiers,
       commaSep(field('declarator', $._field_declarator)),
       optional(choice(
@@ -364,7 +368,6 @@ module.exports = grammar(C, {
     ),
 
     inline_method_definition: $ => seq(
-      optional($.virtual_function_specifier),
       $._declaration_specifiers,
       field('declarator', $._field_declarator),
       choice(
@@ -374,19 +377,13 @@ module.exports = grammar(C, {
       )
     ),
 
-    _constructor_specifiers: $ => repeat1(
-      prec.right(choice(
-        $.storage_class_specifier,
-        $.type_qualifier,
-        $.attribute_specifier,
-        $.attribute_declaration,
-        $.virtual_function_specifier,
-        $.explicit_function_specifier
-      ))
+    _constructor_specifiers: $ => choice(
+      $._declaration_modifiers,
+      $.explicit_function_specifier
     ),
 
     operator_cast_definition: $ => seq(
-      optional($._constructor_specifiers),
+      repeat($._constructor_specifiers),
       field('declarator', $.operator_cast),
       choice(
         field('body', $.compound_statement),
@@ -396,14 +393,14 @@ module.exports = grammar(C, {
     ),
 
     operator_cast_declaration: $ => prec(1, seq(
-      optional($._constructor_specifiers),
+      repeat($._constructor_specifiers),
       field('declarator', $.operator_cast),
       optional(seq('=', field('default_value', $._expression))),
       ';'
     )),
 
     constructor_or_destructor_definition: $ => seq(
-      optional($._constructor_specifiers),
+      repeat($._constructor_specifiers),
       field('declarator', $.function_declarator),
       optional($.field_initializer_list),
       choice(
@@ -414,7 +411,7 @@ module.exports = grammar(C, {
     ),
 
     constructor_or_destructor_declaration: $ => seq(
-      optional($._constructor_specifiers),
+      repeat($._constructor_specifiers),
       field('declarator', $.function_declarator),
       ';'
     ),
@@ -748,7 +745,8 @@ module.exports = grammar(C, {
       $.parameter_pack_expansion,
       $.nullptr,
       $.this,
-      $.raw_string_literal
+      $.raw_string_literal,
+      $.user_defined_literal
     ),
 
     subscript_expression: $ => prec(PREC.SUBSCRIPT, seq(
@@ -923,9 +921,8 @@ module.exports = grammar(C, {
       $.scoped_namespace_identifier,
     ),
 
-    operator_name: $ => token(seq(
+    operator_name: $ => prec(1, seq(
       'operator',
-      /\s*/,
       choice(
         'co_await',
         '+', '-', '*', '/', '%',
@@ -940,9 +937,10 @@ module.exports = grammar(C, {
         '->*',
         '->',
         '()', '[]',
-        seq(choice('new', 'delete'),  /\s*/, optional('[]')),
-      )
-    )),
+        seq(choice('new', 'delete'), optional('[]')),
+        seq('""', $.identifier)
+	  )
+	)),
 
     this: $ => 'this',
     nullptr: $ => 'nullptr',
@@ -950,6 +948,19 @@ module.exports = grammar(C, {
     concatenated_string: $ => seq(
       choice($.raw_string_literal, $.string_literal),
       repeat1(choice($.raw_string_literal, $.string_literal))
+    ),
+
+	literal_suffix: $ => token.immediate(/[a-zA-Z_]\w*/),
+
+    user_defined_literal: $ => seq(
+      choice(
+        $.number_literal,
+        $.char_literal,
+        $.string_literal,
+        $.raw_string_literal,
+        $.concatenated_string
+      ),
+      $.literal_suffix
     ),
 
     _namespace_identifier: $ => alias($.identifier, $.namespace_identifier)
