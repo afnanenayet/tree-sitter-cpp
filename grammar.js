@@ -16,10 +16,11 @@ module.exports = grammar(C, {
   conflicts: ($, original) => original.concat([
     [$.template_function, $.template_type],
     [$.template_function, $.template_type, $._expression],
-    [$.template_function, $._expression],
-    [$.template_method, $.template_type, $.field_expression],
-    [$.scoped_type_identifier, $.scoped_identifier],
-    [$.scoped_type_identifier, $.scoped_field_identifier],
+    [$.template_function, $.template_type, $.qualified_identifier],
+    [$.template_method, $.field_expression],
+    [$.template_type, $.qualified_type_identifier],
+    [$.qualified_type_identifier, $.qualified_identifier],
+    [$.dependent_type_identifier, $.dependent_identifier],
     [$.comma_expression, $.initializer_list],
     [$._expression, $._declarator],
     [$._expression, $.structured_binding_declarator],
@@ -40,6 +41,7 @@ module.exports = grammar(C, {
     _top_level_item: ($, original) => choice(
       original,
       $.namespace_definition,
+      $.namespace_alias_definition,
       $.using_declaration,
       $.alias_declaration,
       $.static_assert_declaration,
@@ -71,7 +73,7 @@ module.exports = grammar(C, {
       $.dependent_type,
       $.decltype,
       prec.right(choice(
-        $.scoped_type_identifier,
+        alias($.qualified_type_identifier, $.qualified_identifier),
         $._type_identifier
       ))
     ),
@@ -88,6 +90,7 @@ module.exports = grammar(C, {
     class_specifier: $ => prec.right(seq(
       'class',
       optional($.ms_declspec_modifier),
+      optional($.attribute_declaration),
       choice(
         field('name', $._class_name),
         seq(
@@ -102,6 +105,7 @@ module.exports = grammar(C, {
     union_specifier: $ => prec.right(seq(
       'union',
       optional($.ms_declspec_modifier),
+      optional($.attribute_declaration),
       choice(
         field('name', $._class_name),
         seq(
@@ -116,6 +120,7 @@ module.exports = grammar(C, {
     struct_specifier: $ => prec.right(seq(
       'struct',
       optional($.ms_declspec_modifier),
+      optional($.attribute_declaration),
       choice(
         field('name', $._class_name),
         seq(
@@ -129,8 +134,8 @@ module.exports = grammar(C, {
 
     _class_name: $ => prec.right(choice(
       $._type_identifier,
-      $.scoped_type_identifier,
-      $.template_type
+      $.template_type,
+      alias($.qualified_type_identifier, $.qualified_identifier)
     )),
 
     virtual_specifier: $ => choice(
@@ -181,7 +186,11 @@ module.exports = grammar(C, {
 
     _enum_base_clause: $ => prec.left(seq(
       ':',
-      field('base', choice($.scoped_type_identifier, $._type_identifier, $.sized_type_specifier))
+      field('base', choice(
+        alias($.qualified_type_identifier, $.qualified_identifier),
+        $._type_identifier,
+        $.sized_type_specifier
+      ))
     )),
 
     // The `auto` storage class is removed in C++0x in order to allow for the `auto` type.
@@ -311,15 +320,7 @@ module.exports = grammar(C, {
       )
     ),
 
-    operator_cast: $ => prec(1, seq(
-      optional(seq(
-        field('namespace', optional(choice(
-          $._namespace_identifier,
-          $.template_type,
-          $.scoped_namespace_identifier
-        ))),
-        '::',
-      )),
+    operator_cast: $ => prec.right(1, seq(
       'operator',
       $._declaration_specifiers,
       field('declarator', $._abstract_declarator),
@@ -335,7 +336,11 @@ module.exports = grammar(C, {
     ),
 
     field_initializer: $ => prec(1, seq(
-      choice($._field_identifier, $.scoped_field_identifier, $.template_method),
+      choice(
+        $._field_identifier,
+        $.template_method,
+        alias($.qualified_field_identifier, $.qualified_identifier),
+      ),
       choice($.initializer_list, $.argument_list),
       optional('...')
     )),
@@ -384,17 +389,19 @@ module.exports = grammar(C, {
 
     operator_cast_definition: $ => seq(
       repeat($._constructor_specifiers),
-      field('declarator', $.operator_cast),
-      choice(
-        field('body', $.compound_statement),
-        $.default_method_clause,
-        $.delete_method_clause
-      )
+      field('declarator', choice(
+        $.operator_cast,
+        alias($.qualified_operator_cast_identifier, $.qualified_identifier)
+      )),
+      field('body', $.compound_statement)
     ),
 
     operator_cast_declaration: $ => prec(1, seq(
       repeat($._constructor_specifiers),
-      field('declarator', $.operator_cast),
+      field('declarator', choice(
+        $.operator_cast,
+        alias($.qualified_operator_cast_identifier, $.qualified_identifier)
+      )),
       optional(seq('=', field('default_value', $._expression))),
       ';'
     )),
@@ -447,7 +454,7 @@ module.exports = grammar(C, {
     _declarator: ($, original) => choice(
       original,
       $.reference_declarator,
-      $.scoped_identifier,
+      $.qualified_identifier,
       $.template_function,
       $.operator_name,
       $.destructor_name,
@@ -539,17 +546,17 @@ module.exports = grammar(C, {
     ),
 
     template_type: $ => seq(
-      field('name', choice($._type_identifier, $.scoped_type_identifier)),
+      field('name', $._type_identifier),
       field('arguments', $.template_argument_list)
     ),
 
     template_method: $ => seq(
-      field('name', choice($._field_identifier, $.scoped_field_identifier)),
+      field('name', $._field_identifier),
       field('arguments', $.template_argument_list)
     ),
 
     template_function: $ => seq(
-      field('name', choice($.identifier, $.scoped_identifier)),
+      field('name', $.identifier),
       field('arguments', $.template_argument_list)
     ),
 
@@ -573,6 +580,17 @@ module.exports = grammar(C, {
       field('body', $.declaration_list)
     ),
 
+    namespace_alias_definition: $ => seq(
+      'namespace',
+      field('name', $.identifier),
+      '=',
+      choice(
+        $.identifier,
+        $.qualified_identifier
+      ),
+      ';'
+    ),
+
     namespace_definition_name: $ => seq(
       choice(
         $.identifier,
@@ -588,7 +606,7 @@ module.exports = grammar(C, {
       optional('namespace'),
       choice(
         $.identifier,
-        $.scoped_identifier
+        $.qualified_identifier
       ),
       ';'
     ),
@@ -738,7 +756,7 @@ module.exports = grammar(C, {
       original,
       $.co_await_expression,
       $.template_function,
-      $.scoped_identifier,
+      $.qualified_identifier,
       $.new_expression,
       $.delete_expression,
       $.lambda_expression,
@@ -802,7 +820,8 @@ module.exports = grammar(C, {
         )),
         field('field', choice(
           $.destructor_name,
-          $.template_method
+          $.template_method,
+          alias($.dependent_field_identifier, $.dependent_name)
         ))
       )
     ),
@@ -859,66 +878,67 @@ module.exports = grammar(C, {
     compound_literal_expression: ($, original) => choice(
       original,
       seq(
-        field('type', choice(
-          $._type_identifier,
-          $.template_type,
-          $.scoped_type_identifier
-        )),
+        field('type', $._class_name),
         field('value', $.initializer_list)
       )
     ),
 
-    scoped_field_identifier: $ => prec(1, seq(
-      field('namespace', optional(choice(
+    dependent_identifier: $ => seq('template', $.template_function),
+    dependent_field_identifier: $ => seq('template', $.template_method),
+    dependent_type_identifier: $ => seq('template', $.template_type),
+
+    _scope_resolution: $=> prec(1, seq(
+      field('scope', optional(choice(
         $._namespace_identifier,
         $.template_type,
-        $.scoped_namespace_identifier
+        alias($.dependent_type_identifier, $.dependent_name)
       ))),
       '::',
-      field('name', choice(
-        $._field_identifier,
-        $.operator_name,
-        $.destructor_name
-      ))
     )),
 
-    scoped_identifier: $ => prec(1, seq(
-      field('namespace', optional(choice(
-        $._namespace_identifier,
-        $.template_type,
-        $.scoped_namespace_identifier
-      ))),
-      '::',
+    qualified_field_identifier: $ => seq(
+      $._scope_resolution,
       field('name', choice(
+        alias($.dependent_field_identifier, $.dependent_name),
+        alias($.qualified_field_identifier, $.qualified_identifier),
+        $.template_method,
+        $._field_identifier
+      ))
+    ),
+
+    qualified_identifier: $ => seq(
+      $._scope_resolution,
+      field('name', choice(
+        alias($.dependent_identifier, $.dependent_name),
+        $.qualified_identifier,
+        $.template_function,
         $.identifier,
         $.operator_name,
         $.destructor_name
+      )),
+    ),
+
+    qualified_type_identifier: $ => seq(
+      $._scope_resolution,
+      field('name', choice(
+        alias($.dependent_type_identifier, $.dependent_name),
+        alias($.qualified_type_identifier, $.qualified_identifier),
+        $.template_type,
+        $._type_identifier
+      )),
+    ),
+
+    qualified_operator_cast_identifier: $ => seq(
+      $._scope_resolution,
+      field('name', choice(
+        alias($.qualified_operator_cast_identifier, $.qualified_identifier),
+        $.operator_cast
       ))
-    )),
-
-    scoped_type_identifier: $ => prec(1, seq(
-      field('namespace', optional(choice(
-        $._namespace_identifier,
-        $.template_type,
-        $.scoped_namespace_identifier
-      ))),
-      '::',
-      field('name', $._type_identifier)
-    )),
-
-    scoped_namespace_identifier: $ => prec(2, seq(
-      field('namespace', optional(choice(
-        $._namespace_identifier,
-        $.template_type,
-        $.scoped_namespace_identifier
-      ))),
-      '::',
-      field('name', $._namespace_identifier)
-    )),
+    ),
 
     _assignment_left_expression: ($, original) => choice(
       original,
-      $.scoped_namespace_identifier,
+      $.qualified_identifier,
     ),
 
     operator_name: $ => prec(1, seq(
