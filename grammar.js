@@ -417,7 +417,7 @@ module.exports = grammar(C, {
       $._declaration_specifiers,
       field('declarator', $._field_declarator),
       choice(
-        field('body', $.compound_statement),
+        field('body', choice($.compound_statement, $.try_statement)),
         $.default_method_clause,
         $.delete_method_clause
       )
@@ -434,7 +434,7 @@ module.exports = grammar(C, {
         $.operator_cast,
         alias($.qualified_operator_cast_identifier, $.qualified_identifier)
       )),
-      field('body', $.compound_statement)
+      field('body', choice($.compound_statement, $.try_statement))
     ),
 
     operator_cast_declaration: $ => prec(1, seq(
@@ -447,14 +447,22 @@ module.exports = grammar(C, {
       ';'
     )),
 
+    constructor_try_statement: $ => seq(
+      'try',
+      optional($.field_initializer_list),
+      field('body', $.compound_statement),
+      repeat1($.catch_clause)
+    ),
+
     constructor_or_destructor_definition: $ => seq(
       repeat($._constructor_specifiers),
       field('declarator', $.function_declarator),
-      optional($.field_initializer_list),
       choice(
-        field('body', choice(
-          $.compound_statement,
-          $.try_statement)),
+        seq(
+          optional($.field_initializer_list),
+          field('body', $.compound_statement)
+        ),
+        alias($.constructor_try_statement, $.try_statement),
         $.default_method_clause,
         $.delete_method_clause
       )
@@ -1020,14 +1028,35 @@ module.exports = grammar(C, {
       ),
     )),
 
-    binary_expression: ($, original) => choice(
+    unary_expression: ($, original) => choice(
       original,
-      prec.left(PREC.THREE_WAY, seq(
-        field('left', $._expression),
-        field('operator', '<=>'),
-        field('right', $._expression)
+      prec.left(PREC.UNARY, seq(
+        field('operator', choice('not', 'compl')),
+        field('argument', $._expression)
       ))
     ),
+
+    binary_expression: ($, original) => {
+      const table = [
+        ['<=>', PREC.THREE_WAY],
+        ['or',  PREC.LOGICAL_OR],
+        ['and', PREC.LOGICAL_AND],
+        ['bitor', PREC.INCLUSIVE_OR],
+        ['xor', PREC.EXCLUSIVE_OR],
+        ['bitand',  PREC.BITWISE_AND],
+        ['not_eq', PREC.EQUAL],
+      ];
+
+      return choice(
+        ...original.members,
+        ...table.map(([operator, precedence]) => {
+          return prec.left(precedence, seq(
+            field('left', $._expression),
+            field('operator', operator),
+            field('right', $._expression)
+          ))
+        }));
+    },
 
     argument_list: $ => seq(
       '(',
@@ -1103,6 +1132,19 @@ module.exports = grammar(C, {
       $.qualified_identifier,
     ),
 
+    assignment_expression: ($, original) => choice(
+      original,
+      prec.right(PREC.ASSIGNMENT, seq(
+        field('left', $._assignment_left_expression),
+        field('operator', choice(
+          'and_eq',
+          'or_eq',
+          'xor_eq'
+        )),
+        field('right', $._expression)
+      ))
+    ),
+
     operator_name: $ => prec(1, seq(
       'operator',
       choice(
@@ -1120,10 +1162,13 @@ module.exports = grammar(C, {
         '->*',
         '->',
         '()', '[]',
+        'xor', 'bitand', 'bitor', 'compl',
+        'not', 'xor_eq', 'and_eq', 'or_eq', 'not_eq',
+        'and', 'or',
         seq(choice('new', 'delete'), optional('[]')),
         seq('""', $.identifier)
-	  )
-	)),
+      )
+    )),
 
     this: $ => 'this',
     nullptr: $ => 'nullptr',
@@ -1133,7 +1178,7 @@ module.exports = grammar(C, {
       repeat1(choice($.raw_string_literal, $.string_literal))
     ),
 
-	literal_suffix: $ => token.immediate(/[a-zA-Z_]\w*/),
+    literal_suffix: $ => token.immediate(/[a-zA-Z_]\w*/),
 
     user_defined_literal: $ => seq(
       choice(
