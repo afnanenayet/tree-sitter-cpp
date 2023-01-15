@@ -24,7 +24,8 @@ module.exports = grammar(C, {
   name: 'cpp',
 
   externals: $ => [
-    $.raw_string_literal
+    $.raw_string_delimiter,
+    $.raw_string_content,
   ],
 
   conflicts: ($, original) => original.concat([
@@ -72,10 +73,10 @@ module.exports = grammar(C, {
 
     // Types
 
-    placeholder_type_specifier: $ => seq(
+    placeholder_type_specifier: $ => prec(1, seq(
       field('constraint', optional($._type_specifier)),
       choice($.auto, alias($.decltype_auto, $.decltype))
-    ),
+    )),
 
     auto: $ => 'auto',
     decltype_auto: $ => seq(
@@ -212,7 +213,7 @@ module.exports = grammar(C, {
       ))
     ),
 
-    enum_specifier: $ => prec.left(seq(
+    enum_specifier: $ => prec.right(seq(
       'enum',
       optional(choice('class', 'struct')),
       choice(
@@ -828,6 +829,24 @@ module.exports = grammar(C, {
       $.fold_expression
     ),
 
+    raw_string_literal: $ => seq(
+      choice('R"', 'LR"', 'uR"', 'UR"', 'u8R"'),
+      choice(
+        seq(
+          field('delimiter', $.raw_string_delimiter),
+          '(',
+          $.raw_string_content,
+          ')',
+          $.raw_string_delimiter,
+        ),
+        seq(
+          '(',
+          $.raw_string_content,
+          ')',
+        )),
+      '"',
+    ),
+
     subscript_expression: $ => prec(PREC.SUBSCRIPT, seq(
       field('argument', $._expression),
       '[',
@@ -1082,6 +1101,7 @@ module.exports = grammar(C, {
       field('scope', optional(choice(
         $._namespace_identifier,
         $.template_type,
+        $.decltype,
         alias($.dependent_type_identifier, $.dependent_name)
       ))),
       '::',
