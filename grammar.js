@@ -122,50 +122,34 @@ module.exports = grammar(C, {
     // When used in a trailing return type, these specifiers can now occur immediately before
     // a compound statement. This introduces a shift/reduce conflict that needs to be resolved
     // with an associativity.
-    class_specifier: $ => prec.right(seq(
+    _class_declaration: $ => prec.right(seq(
+      optional($.ms_declspec_modifier),
+      repeat($.attribute_declaration),
+      choice(
+        field('name', $._class_name),
+        seq(
+          optional(field('name', $._class_name)),
+          optional($.virtual_specifier),
+          optional($.base_class_clause),
+          field('body', $.field_declaration_list)
+        )
+      )
+    )),
+
+    class_specifier: $ => seq(
       'class',
-      optional($.ms_declspec_modifier),
-      optional($.attribute_declaration),
-      choice(
-        field('name', $._class_name),
-        seq(
-          optional(field('name', $._class_name)),
-          optional($.virtual_specifier),
-          optional($.base_class_clause),
-          field('body', $.field_declaration_list)
-        )
-      )
-    )),
+      $._class_declaration
+    ),
 
-    union_specifier: $ => prec.right(seq(
+    union_specifier: $ => seq(
       'union',
-      optional($.ms_declspec_modifier),
-      optional($.attribute_declaration),
-      choice(
-        field('name', $._class_name),
-        seq(
-          optional(field('name', $._class_name)),
-          optional($.virtual_specifier),
-          optional($.base_class_clause),
-          field('body', $.field_declaration_list)
-        )
-      )
-    )),
+      $._class_declaration
+    ),
 
-    struct_specifier: $ => prec.right(seq(
+    struct_specifier: $ => seq(
       'struct',
-      optional($.ms_declspec_modifier),
-      optional($.attribute_declaration),
-      choice(
-        field('name', $._class_name),
-        seq(
-          optional(field('name', $._class_name)),
-          optional($.virtual_specifier),
-          optional($.base_class_clause),
-          field('body', $.field_declaration_list)
-        )
-      )
-    )),
+      $._class_declaration
+    ),
 
     _class_name: $ => prec.right(choice(
       $._type_identifier,
@@ -185,13 +169,11 @@ module.exports = grammar(C, {
       'override' // legal for functions in addition to final, plus permutations.
     ),
 
-    virtual_function_specifier: $ => choice(
-      'virtual'
-    ),
+    virtual: $ => choice('virtual'),
 
     _declaration_modifiers: ($, original) => choice(
       original,
-      $.virtual_function_specifier,
+      $.virtual,
     ),
 
     explicit_function_specifier: $ => choice(
@@ -207,7 +189,12 @@ module.exports = grammar(C, {
     base_class_clause: $ => seq(
       ':',
       commaSep1(seq(
-        optional(choice('public', 'private', 'protected')),
+        repeat($.attribute_declaration),
+        optional(choice(
+          $.access_specifier,
+          seq($.access_specifier, $.virtual),
+          seq($.virtual, $.access_specifier)
+        )),
         $._class_name,
         optional('...')
       ))
@@ -396,7 +383,7 @@ module.exports = grammar(C, {
       alias($.operator_cast_definition, $.function_definition),
       alias($.operator_cast_declaration, $.declaration),
       $.friend_declaration,
-      $.access_specifier,
+      seq($.access_specifier, ':'),
       $.alias_declaration,
       $.using_declaration,
       $.type_definition,
@@ -494,13 +481,10 @@ module.exports = grammar(C, {
       )
     ),
 
-    access_specifier: $ => seq(
-      choice(
-        'public',
-        'private',
-        'protected'
-      ),
-      ':'
+    access_specifier: $ => choice(
+     'public',
+     'private',
+     'protected'
     ),
 
     _declarator: ($, original) => choice(
@@ -535,43 +519,37 @@ module.exports = grammar(C, {
 
     ref_qualifier: $ => choice('&', '&&'),
 
-    function_declarator: ($, original) => prec.dynamic(1, seq(
-      original,
-      repeat(choice(
-        $.type_qualifier,
-        $.ref_qualifier,
-        $.virtual_specifier,
+    _function_declarator_seq: $ => prec.right(seq(
+      field('parameters', $.parameter_list),
+      repeat($.attribute_specifier),
+      repeat($.type_qualifier),
+      optional($.ref_qualifier),
+      optional(choice(
         $.noexcept,
         $.throw_specifier,
       )),
+      repeat($.attribute_declaration),
       optional($.trailing_return_type),
-      optional($.requires_clause)
+      optional(choice(
+        repeat($.virtual_specifier),
+        $.requires_clause
+      ))
     )),
 
-    function_field_declarator: ($, original) => prec.dynamic(1, seq(
-      original,
-      repeat(choice(
-        $.type_qualifier,
-        $.ref_qualifier,
-        $.virtual_specifier,
-        $.noexcept,
-        $.throw_specifier,
-      )),
-      optional($.trailing_return_type),
-      optional($.requires_clause)
+    function_declarator: $ => prec.dynamic(1, seq(
+      field('declarator', $._declarator),
+      $._function_declarator_seq,
     )),
 
-    abstract_function_declarator: ($, original) => prec.right(seq(
-      original,
-      repeat(choice(
-        $.type_qualifier,
-        $.ref_qualifier,
-        $.noexcept,
-        $.throw_specifier,
-      )),
-      optional($.trailing_return_type),
-      optional($.requires_clause)
+    function_field_declarator: $ => prec.dynamic(1, seq(
+      field('declarator', $._field_declarator),
+      $._function_declarator_seq,
     )),
+
+    abstract_function_declarator: $ => seq(
+      field('declarator', optional($._abstract_declarator)),
+      $._function_declarator_seq,
+    ),
 
     trailing_return_type: $ => seq('->', $.type_descriptor),
 
@@ -664,7 +642,7 @@ module.exports = grammar(C, {
     alias_declaration: $ => seq(
       'using',
       field('name', $._type_identifier),
-      optional($.attribute_declaration),
+      repeat($.attribute_declaration),
       '=',
       field('type', $.type_descriptor),
       ';'
