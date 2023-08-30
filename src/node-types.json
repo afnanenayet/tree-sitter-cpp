@@ -527,6 +527,10 @@
           "named": true
         },
         {
+          "type": "gnu_asm_expression",
+          "named": true
+        },
+        {
           "type": "noexcept",
           "named": true
         },
@@ -702,6 +706,10 @@
           "named": true
         },
         {
+          "type": "compound_statement",
+          "named": true
+        },
+        {
           "type": "initializer_list",
           "named": true
         },
@@ -794,6 +802,10 @@
           },
           {
             "type": "subscript_expression",
+            "named": true
+          },
+          {
+            "type": "user_defined_literal",
             "named": true
           }
         ]
@@ -1697,6 +1709,10 @@
       "required": true,
       "types": [
         {
+          "type": "identifier",
+          "named": true
+        },
+        {
           "type": "raw_string_literal",
           "named": true
         },
@@ -1994,6 +2010,10 @@
         "types": [
           {
             "type": "_declarator",
+            "named": true
+          },
+          {
+            "type": "gnu_asm_expression",
             "named": true
           },
           {
@@ -2359,6 +2379,16 @@
           }
         ]
       }
+    },
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "attribute_specifier",
+          "named": true
+        }
+      ]
     }
   },
   {
@@ -2451,7 +2481,7 @@
         ]
       },
       "default_value": {
-        "multiple": false,
+        "multiple": true,
         "required": false,
         "types": [
           {
@@ -3124,6 +3154,10 @@
         },
         {
           "type": "attribute_specifier",
+          "named": true
+        },
+        {
+          "type": "gnu_asm_expression",
           "named": true
         },
         {
@@ -4315,11 +4349,19 @@
       "required": false,
       "types": [
         {
+          "type": "identifier",
+          "named": true
+        },
+        {
           "type": "optional_parameter_declaration",
           "named": true
         },
         {
           "type": "parameter_declaration",
+          "named": true
+        },
+        {
+          "type": "variadic_parameter",
           "named": true
         },
         {
@@ -5345,7 +5387,7 @@
     "named": true,
     "fields": {
       "name": {
-        "multiple": false,
+        "multiple": true,
         "required": true,
         "types": [
           {
@@ -5379,6 +5421,10 @@
           {
             "type": "qualified_identifier",
             "named": true
+          },
+          {
+            "type": "template",
+            "named": false
           },
           {
             "type": "template_function",
@@ -5795,6 +5841,25 @@
     }
   },
   {
+    "type": "subscript_argument_list",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "_expression",
+          "named": true
+        },
+        {
+          "type": "initializer_list",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "subscript_designator",
     "named": true,
     "fields": {},
@@ -5823,16 +5888,12 @@
           }
         ]
       },
-      "index": {
+      "indices": {
         "multiple": false,
         "required": true,
         "types": [
           {
-            "type": "_expression",
-            "named": true
-          },
-          {
-            "type": "initializer_list",
+            "type": "subscript_argument_list",
             "named": true
           }
         ]
@@ -6044,6 +6105,10 @@
         "types": [
           {
             "type": "field_identifier",
+            "named": true
+          },
+          {
+            "type": "operator_name",
             "named": true
           }
         ]
@@ -6417,6 +6482,10 @@
       "required": false,
       "types": [
         {
+          "type": "attribute_specifier",
+          "named": true
+        },
+        {
           "type": "type_qualifier",
           "named": true
         }
@@ -6714,6 +6783,11 @@
         }
       ]
     }
+  },
+  {
+    "type": "variadic_parameter",
+    "named": true,
+    "fields": {}
   },
   {
     "type": "variadic_parameter_declaration",
@@ -7111,6 +7185,10 @@
     "named": false
   },
   {
+    "type": "_Alignof",
+    "named": false
+  },
+  {
     "type": "_Atomic",
     "named": false
   },
@@ -7120,6 +7198,14 @@
   },
   {
     "type": "_Noreturn",
+    "named": false
+  },
+  {
+    "type": "__alignof",
+    "named": false
+  },
+  {
+    "type": "__alignof__",
     "named": false
   },
   {
@@ -7147,7 +7233,23 @@
     "named": false
   },
   {
+    "type": "__extension__",
+    "named": false
+  },
+  {
     "type": "__fastcall",
+    "named": false
+  },
+  {
+    "type": "__forceinline",
+    "named": false
+  },
+  {
+    "type": "__inline",
+    "named": false
+  },
+  {
+    "type": "__inline__",
     "named": false
   },
   {
@@ -7163,11 +7265,19 @@
     "named": false
   },
   {
+    "type": "__thread",
+    "named": false
+  },
+  {
     "type": "__unaligned",
     "named": false
   },
   {
     "type": "__vectorcall",
+    "named": false
+  },
+  {
+    "type": "_alignof",
     "named": false
   },
   {
