@@ -1,12 +1,11 @@
 /**
  * @file C++ grammar for tree-sitter
- * @author Max Brunsfeld
+ * @author Max Brunsfeld <maxbrunsfeld@gmail.com>
+ * @author Amaan Qureshi <amaanq12@gmail.com>
+ * @author John Drouhard <john@drouhard.dev>
  * @license MIT
  */
 
-/* eslint-disable arrow-parens */
-/* eslint-disable camelcase */
-/* eslint-disable-next-line spaced-comment */
 /// <reference types="tree-sitter-cli/dsl" />
 // @ts-check
 
@@ -70,7 +69,6 @@ module.exports = grammar(C, {
     [$.template_function, $.template_type],
     [$.template_function, $.template_type, $._expression_not_binary],
     [$.template_function, $.template_type, $.qualified_identifier],
-    [$.template_method, $.field_expression],
     [$.template_type, $.qualified_type_identifier],
     [$.qualified_type_identifier, $.qualified_identifier],
     [$.comma_expression, $.initializer_list],
@@ -276,8 +274,8 @@ module.exports = grammar(C, {
         repeat($.attribute_declaration),
         optional(choice(
           $.access_specifier,
-          seq($.access_specifier, $.virtual),
-          seq($.virtual, $.access_specifier),
+          seq($.access_specifier, optional($.virtual)),
+          seq($.virtual, optional($.access_specifier)),
         )),
         $._class_name,
         optional('...'),
@@ -498,6 +496,7 @@ module.exports = grammar(C, {
         field('body', choice($.compound_statement, $.try_statement)),
         $.default_method_clause,
         $.delete_method_clause,
+        $.pure_virtual_clause,
       ),
     ),
 
@@ -543,6 +542,7 @@ module.exports = grammar(C, {
         alias($.constructor_try_statement, $.try_statement),
         $.default_method_clause,
         $.delete_method_clause,
+        $.pure_virtual_clause,
       ),
     ),
 
@@ -554,6 +554,7 @@ module.exports = grammar(C, {
 
     default_method_clause: _ => seq('=', 'default', ';'),
     delete_method_clause: _ => seq('=', 'delete', ';'),
+    pure_virtual_clause: _ => seq('=', '0', ';'),
 
     friend_declaration: $ => seq(
       'friend',
@@ -594,6 +595,11 @@ module.exports = grammar(C, {
       $.operator_name,
     ),
 
+    _type_declarator: ($, original) => choice(
+      original,
+      alias($.reference_type_declarator, $.reference_declarator),
+    ),
+
     _abstract_declarator: ($, original) => choice(
       original,
       $.abstract_reference_declarator,
@@ -601,6 +607,7 @@ module.exports = grammar(C, {
 
     reference_declarator: $ => prec.dynamic(1, prec.right(seq(choice('&', '&&'), $._declarator))),
     reference_field_declarator: $ => prec.dynamic(1, prec.right(seq(choice('&', '&&'), $._field_declarator))),
+    reference_type_declarator: $ => prec.dynamic(1, prec.right(seq(choice('&', '&&'), $._type_declarator))),
     abstract_reference_declarator: $ => prec.right(seq(choice('&', '&&'), optional($._abstract_declarator))),
 
     structured_binding_declarator: $ => prec.dynamic(PREC.STRUCTURED_BINDING, seq(
@@ -707,6 +714,7 @@ module.exports = grammar(C, {
     namespace_definition: $ => seq(
       optional('inline'),
       'namespace',
+      optional($.attribute_declaration),
       field('name', optional(
         choice(
           $._namespace_identifier,
@@ -1171,7 +1179,7 @@ module.exports = grammar(C, {
       ];
 
       return choice(
-        ...original.members,
+        original,
         ...table.map(([operator, precedence]) => {
           return prec.left(precedence, seq(
             field('left', $._expression),
