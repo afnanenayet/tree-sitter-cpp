@@ -66,6 +66,7 @@ module.exports = grammar(C, {
     [$._declaration_modifiers, $.attributed_statement],
     [$._top_level_item, $._top_level_statement],
     [$._block_item, $.statement],
+    [$.type_qualifier, $.extension_expression],
 
     // C++
     [$.template_function, $.template_type],
@@ -77,6 +78,11 @@ module.exports = grammar(C, {
     [$.expression, $._declarator],
     [$.expression, $.structured_binding_declarator],
     [$.expression, $._declarator, $.type_specifier],
+    [$.expression, $.identifier_parameter_pack_expansion],
+    [$.expression, $._lambda_capture_identifier],
+    [$.expression, $._lambda_capture],
+    [$.expression, $.structured_binding_declarator, $._lambda_capture_identifier],
+    [$.structured_binding_declarator, $._lambda_capture_identifier],
     [$.parameter_list, $.argument_list],
     [$.type_specifier, $.call_expression],
     [$._declaration_specifiers, $._constructor_specifiers],
@@ -247,11 +253,9 @@ module.exports = grammar(C, {
       'override', // legal for functions in addition to final, plus permutations.
     ),
 
-    virtual: _ => 'virtual',
-
     _declaration_modifiers: ($, original) => choice(
       original,
-      $.virtual,
+      'virtual',
     ),
 
     explicit_function_specifier: $ => choice(
@@ -270,8 +274,8 @@ module.exports = grammar(C, {
         repeat($.attribute_declaration),
         optional(choice(
           $.access_specifier,
-          seq($.access_specifier, optional($.virtual)),
-          seq($.virtual, optional($.access_specifier)),
+          seq($.access_specifier, optional('virtual')),
+          seq('virtual', optional($.access_specifier)),
         )),
         $._class_name,
         optional('...'),
@@ -469,6 +473,7 @@ module.exports = grammar(C, {
       $.using_declaration,
       $.type_definition,
       $.static_assert_declaration,
+      ';',
     ),
 
     field_declaration: $ => seq(
@@ -550,9 +555,10 @@ module.exports = grammar(C, {
 
     default_method_clause: _ => seq('=', 'default', ';'),
     delete_method_clause: _ => seq('=', 'delete', ';'),
-    pure_virtual_clause: _ => seq('=', '0', ';'),
+    pure_virtual_clause: _ => seq('=', /0/, ';'),
 
     friend_declaration: $ => seq(
+      optional('constexpr'),
       'friend',
       choice(
         $.declaration,
@@ -769,11 +775,7 @@ module.exports = grammar(C, {
       field('condition', $.expression),
       optional(seq(
         ',',
-        field('message', choice(
-          $.string_literal,
-          $.raw_string_literal,
-          $.concatenated_string,
-        )),
+        field('message', $._string),
       )),
       ')',
       ';',
@@ -930,9 +932,14 @@ module.exports = grammar(C, {
       $.lambda_expression,
       $.parameter_pack_expansion,
       $.this,
-      $.raw_string_literal,
       $.user_defined_literal,
       $.fold_expression,
+    ),
+
+    _string: $ => choice(
+      $.string_literal,
+      $.raw_string_literal,
+      $.concatenated_string,
     ),
 
     raw_string_literal: $ => seq(
@@ -945,11 +952,8 @@ module.exports = grammar(C, {
           ')',
           $.raw_string_delimiter,
         ),
-        seq(
-          '(',
-          $.raw_string_content,
-          ')',
-        )),
+        seq('(', $.raw_string_content, ')'),
+      ),
       '"',
     ),
 
@@ -1095,16 +1099,39 @@ module.exports = grammar(C, {
       '[',
       choice(
         $.lambda_default_capture,
-        commaSep($.expression),
+        commaSep($._lambda_capture),
         seq(
           $.lambda_default_capture,
-          ',', commaSep1($.expression),
+          ',', commaSep1($._lambda_capture),
         ),
       ),
       ']',
     )),
 
     lambda_default_capture: _ => choice('=', '&'),
+
+    _lambda_capture_identifier: $ => seq(
+      optional('&'),
+      choice(
+        $.identifier,
+        $.qualified_identifier,
+        alias($.identifier_parameter_pack_expansion, $.parameter_pack_expansion),
+      ),
+    ),
+
+    lambda_capture_initializer: $ => seq(
+      optional('&'),
+      optional('...'),
+      field('left', $.identifier),
+      '=',
+      field('right', $.expression),
+    ),
+
+    _lambda_capture: $ => choice(
+      seq(optional('*'), $.this),
+      $._lambda_capture_identifier,
+      $.lambda_capture_initializer,
+    ),
 
     _fold_operator: _ => choice(...FOLD_OPERATORS),
     _binary_fold_operator: _ => choice(...FOLD_OPERATORS.map((operator) => seq(field('operator', operator), '...', operator))),
@@ -1142,6 +1169,11 @@ module.exports = grammar(C, {
 
     type_parameter_pack_expansion: $ => seq(
       field('pattern', $.type_descriptor),
+      '...',
+    ),
+
+    identifier_parameter_pack_expansion: $ => seq(
+      field('pattern', $.identifier),
       '...',
     ),
 
@@ -1189,7 +1221,7 @@ module.exports = grammar(C, {
     // The compound_statement is added to parse macros taking statements as arguments, e.g. MYFORLOOP(1, 10, i, { foo(i); bar(i); })
     argument_list: $ => seq(
       '(',
-      commaSep(choice(seq(optional('__extension__'), $.expression), $.initializer_list, $.compound_statement)),
+      commaSep(choice($.expression, $.initializer_list, $.compound_statement)),
       ')',
     ),
 
@@ -1372,9 +1404,7 @@ module.exports = grammar(C, {
       choice(
         $.number_literal,
         $.char_literal,
-        $.string_literal,
-        $.raw_string_literal,
-        $.concatenated_string,
+        $._string,
       ),
       $.literal_suffix,
     ),
@@ -1388,8 +1418,7 @@ module.exports = grammar(C, {
  *
  * @param {Rule} rule
  *
- * @return {ChoiceRule}
- *
+ * @returns {ChoiceRule}
  */
 function commaSep(rule) {
   return optional(commaSep1(rule));
@@ -1400,8 +1429,7 @@ function commaSep(rule) {
  *
  * @param {Rule} rule
  *
- * @return {SeqRule}
- *
+ * @returns {SeqRule}
  */
 function commaSep1(rule) {
   return seq(rule, repeat(seq(',', rule)));
