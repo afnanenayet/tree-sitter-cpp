@@ -98,6 +98,7 @@ using ::e::f::g;
 using h = i::j;
 using namespace std;
 using enum Foo;
+[[deprecated]] using namespace std;
 
 template <typename T>
 using a = typename b<T>::c;
@@ -133,6 +134,11 @@ using foobar [[deprecated]] [[maybe_unused]] = int;
   (using_declaration
     (identifier))
   (using_declaration
+    (identifier))
+  (using_declaration
+    (attribute_declaration
+      (attribute
+        (identifier)))
     (identifier))
   (template_declaration
     (template_parameter_list
@@ -784,6 +790,9 @@ int f([[a::b(c), d]] int x) {}
 [[gnu::always_inline]] [[gnu::hot]] [[gnu::const]] [[nodiscard]]
 inline int g();
 
+[[using gnu: always_inline, hot, const, visibility("default")]] [[nodiscard]]
+inline int g();
+
 [[aaa]]
 int f() { }
 
@@ -835,6 +844,28 @@ class A final : [[deprecated]] public B {};
     (function_declarator
       (identifier)
       (parameter_list)))
+  (declaration
+        (attribute_declaration
+          (attribute
+            (identifier)
+            (identifier))
+          (attribute
+            (identifier))
+          (attribute
+            (identifier))
+          (attribute
+            (identifier)
+            (argument_list
+              (string_literal
+                (string_content)))))
+        (attribute_declaration
+          (attribute
+            (identifier)))
+        (storage_class_specifier)
+        (primitive_type)
+        (function_declarator
+          (identifier)
+          (parameter_list)))
   (function_definition
     (attribute_declaration
       (attribute
