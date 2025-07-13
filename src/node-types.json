@@ -2035,6 +2035,10 @@
             "named": true
           },
           {
+            "type": "ms_call_modifier",
+            "named": true
+          },
+          {
             "type": "operator_cast",
             "named": true
           }
@@ -2464,6 +2468,25 @@
       "types": [
         {
           "type": "expression",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "explicit_object_parameter_declaration",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "parameter_declaration",
+          "named": true
+        },
+        {
+          "type": "this",
           "named": true
         }
       ]
@@ -3999,6 +4022,10 @@
           "named": true
         },
         {
+          "type": "lambda_specifier",
+          "named": true
+        },
+        {
           "type": "noexcept",
           "named": true
         },
@@ -4012,10 +4039,6 @@
         },
         {
           "type": "trailing_return_type",
-          "named": true
-        },
-        {
-          "type": "type_qualifier",
           "named": true
         }
       ]
@@ -4081,6 +4104,11 @@
         ]
       }
     }
+  },
+  {
+    "type": "lambda_specifier",
+    "named": true,
+    "fields": {}
   },
   {
     "type": "linkage_specification",
@@ -4684,6 +4712,10 @@
       "required": false,
       "types": [
         {
+          "type": "explicit_object_parameter_declaration",
+          "named": true
+        },
+        {
           "type": "optional_parameter_declaration",
           "named": true
         },
@@ -4781,7 +4813,15 @@
         "required": false,
         "types": [
           {
-            "type": "type_specifier",
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "template_type",
+            "named": true
+          },
+          {
+            "type": "type_identifier",
             "named": true
           }
         ]
@@ -7901,7 +7941,8 @@
   },
   {
     "type": "comment",
-    "named": true
+    "named": true,
+    "extra": true
   },
   {
     "type": "compl",

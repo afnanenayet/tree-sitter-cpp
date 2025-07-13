@@ -146,7 +146,11 @@ module.exports = grammar(C, {
     // Types
 
     placeholder_type_specifier: $ => prec(1, seq(
-      field('constraint', optional($.type_specifier)),
+      field('constraint', optional(choice(
+        alias($.qualified_type_identifier, $.qualified_identifier),
+        $.template_type,
+        $._type_identifier,
+      ))),
       choice($.auto, alias($.decltype_auto, $.decltype)),
     )),
 
@@ -252,6 +256,7 @@ module.exports = grammar(C, {
         seq(
           // C uses _declaration_declarator here for some nice macro parsing in function declarators,
           // but this causes a world of pain for C++ so we'll just stick to the normal _declarator here.
+          optional($.ms_call_modifier),
           $._declarator,
           optional($.gnu_asm_expression),
         ),
@@ -393,12 +398,13 @@ module.exports = grammar(C, {
       ),
     ),
 
-    template_instantiation: $ => seq(
+    template_instantiation: $ => prec(1, seq(
+      optional('extern'),
       'template',
       optional($._declaration_specifiers),
       field('declarator', $._declarator),
       ';',
-    ),
+    )),
 
     template_parameter_list: $ => seq(
       '<',
@@ -446,11 +452,17 @@ module.exports = grammar(C, {
       '(',
       commaSep(choice(
         $.parameter_declaration,
+        $.explicit_object_parameter_declaration,
         $.optional_parameter_declaration,
         $.variadic_parameter_declaration,
         '...',
       )),
       ')',
+    ),
+
+    explicit_object_parameter_declaration: $ => seq(
+      $.this,
+      $.parameter_declaration,
     ),
 
     optional_parameter_declaration: $ => seq(
@@ -1141,12 +1153,19 @@ module.exports = grammar(C, {
       field('requirements', $.requirement_seq),
     ),
 
+    lambda_specifier: $ => choice(
+      'static',
+      'constexpr',
+      'consteval',
+      'mutable',
+    ),
+
     lambda_declarator: $ => choice(
       // main declarator form, includes parameter list
       seq(
         repeat($.attribute_declaration),
         field('parameters', $.parameter_list),
-        optional($.type_qualifier),
+        repeat($.lambda_specifier),
         optional($._function_exception_specification),
         repeat($.attribute_declaration),
         optional($.trailing_return_type),
@@ -1167,7 +1186,7 @@ module.exports = grammar(C, {
       ),
       seq(
         repeat($.attribute_declaration),
-        $.type_qualifier,
+        repeat1($.lambda_specifier),
         optional($._function_exception_specification),
         repeat($.attribute_declaration),
         optional($.trailing_return_type),
